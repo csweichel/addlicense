@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -47,11 +48,12 @@ Flags:
 `
 
 var (
-	holder    = flag.String("c", "Google LLC", "copyright holder")
-	license   = flag.String("l", "apache", "license type: apache, bsd, mit, mpl")
+	holder    = flag.String("c", "TypeFox", "copyright holder")
+	license   = flag.String("l", "agpl", "license type: agpl")
 	licensef  = flag.String("f", "", "license file")
 	year      = flag.String("y", fmt.Sprint(time.Now().Year()), "copyright year(s)")
 	verbose   = flag.Bool("v", false, "verbose mode: print the name of the files that are modified")
+	stdin     = flag.Bool("s", false, "read paths to file that are modified from stdin")
 	checkonly = flag.Bool("check", false, "check only mode: verify presence of license headers and exit with non-zero code if missing")
 )
 
@@ -139,11 +141,27 @@ func main() {
 		}
 	}()
 
+	defer func() {
+		close(ch)
+		<-done
+	}()
+
+	if *stdin {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			path := scanner.Text()
+			stat, err := os.Stat(path)
+			if err != nil {
+				log.Printf("file %s does not exist", path)
+			}
+			ch <- &file{path, stat.Mode()}
+		}
+		return
+	}
+
 	for _, d := range flag.Args() {
 		walk(ch, d)
 	}
-	close(ch)
-	<-done
 }
 
 type file struct {
